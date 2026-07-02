@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Cut Coach AI
 
-## Getting Started
+An AI Fitness Coach that helps users lose fat without manually counting calories.
 
-First, run the development server:
+## Vision
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Cut Coach AI is designed to remove the friction from traditional calorie tracking.
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Instead of forcing users to search food databases and manually enter macros, users simply describe their day in natural language.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+The AI estimates nutrition, remembers habits, analyzes long-term trends, and provides personalized coaching.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The goal is not to count calories.
 
-## Learn More
+The goal is to build sustainable habits.
 
-To learn more about Next.js, take a look at the following resources:
+## Core Principles
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Logging should take less than 60 seconds.
+- AI should do the hard work.
+- Trends matter more than single days.
+- Restaurant meals should be judged fairly.
+- Consistency beats perfection.
+- Coaching should become more personalized over time.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Current Features
 
-## Deploy on Vercel
+- ✅ Daily Check-In
+- ✅ AI Nutrition Estimation
+- ✅ AI Daily Coach
+- ✅ Dashboard
+- ✅ Trend Tracking
+- ✅ Persistent Check-Ins
+- ✅ Persistent AI Analysis
+- ✅ User Profile
+- ✅ Weight Tracking
+- ✅ Workout Tracking
+- ✅ Step Tracking
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Tech Stack
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Next.js
+- React
+- TypeScript
+- Tailwind CSS
+- OpenAI API
+- LocalStorage (current persistence)
+
+## Planned Features
+
+- Weekly AI Reports
+- Coach Chat
+- Food Memory
+- Restaurant Memory
+- Grocery Memory
+- Weight Forecasting
+- Progress Photos
+- Apple Health Integration
+- Multi-device Sync
+- Database
+- Authentication
+- Mobile App
+
+## Documentation
+
+See the `docs` folder:
+
+- [ROADMAP.md](docs/ROADMAP.md)
+- [VISION.md](docs/VISION.md)
+- [BRAND.md](docs/BRAND.md)
+- [PRODUCT_DECISIONS.md](docs/PRODUCT_DECISIONS.md)
+- [COMPETITORS.md](docs/COMPETITORS.md)
+- [MONETIZATION.md](docs/MONETIZATION.md)
+- [IDEAS.md](docs/IDEAS.md)
+- [CHANGELOG.md](docs/CHANGELOG.md)
+
+## Guiding Principle
+
+Every feature should do at least one of the following:
+
+- Reduce friction
+- Increase personalization
+- Improve coaching
+
+If it does none of those three things, it probably doesn't belong in the product.
+
+## Long-Term Goal
+
+Build the world's most intelligent AI fitness coach.
+
+Not another calorie tracker.
