@@ -20,8 +20,13 @@ function readJson<T>(key: string, fallback: T): T {
   }
 }
 
+function readJsonArray<T>(key: string): T[] {
+  const value = readJson<unknown>(key, []);
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
 export function loadCheckIns() {
-  return readJson<CheckIn[]>(CHECK_INS_KEY, []);
+  return readJsonArray<CheckIn>(CHECK_INS_KEY);
 }
 
 export function saveCheckIns(checkIns: CheckIn[]) {
@@ -29,7 +34,7 @@ export function saveCheckIns(checkIns: CheckIn[]) {
 }
 
 export function loadStoredAnalyses() {
-  return readJson<StoredAnalysis[]>(ANALYSES_KEY, []);
+  return readJsonArray<StoredAnalysis>(ANALYSES_KEY);
 }
 
 export function findStoredAnalysis(date: string, signature: string) {
@@ -78,7 +83,7 @@ function matchesFoodMemoryItem(item: FoodMemoryItem, incoming: FoodMemoryItem) {
 }
 
 export function loadFoodMemory() {
-  return readJson<FoodMemoryItem[]>(FOOD_MEMORY_KEY, []);
+  return readJsonArray<FoodMemoryItem>(FOOD_MEMORY_KEY);
 }
 
 export function saveFoodMemory(items: FoodMemoryItem[]) {

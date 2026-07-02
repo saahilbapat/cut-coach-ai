@@ -2,9 +2,12 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import { MainNav } from "../../components/MainNav";
 import { cutConcernOptions, emptyProfile, validateProfile } from "../../lib/profile";
 import { loadProfile, saveProfile } from "../../lib/storage";
+import { createClient } from "../../lib/supabase/client";
+import { getProfile, upsertProfile } from "../../lib/supabase/queries";
 import type { UserProfile } from "../../lib/types";
 
 const input =
@@ -14,17 +17,42 @@ const textarea =
   "mt-2 min-h-24 w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white placeholder:text-slate-500 outline-none focus:border-green-400";
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const [errors, setErrors] = useState<Partial<Record<keyof UserProfile, string>>>({});
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setProfile(loadProfile(emptyProfile));
-    }, 0);
+    async function loadProfileData() {
+      setIsLoading(true);
 
-    return () => window.clearTimeout(timeout);
-  }, []);
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.replace("/login");
+          return;
+        }
+
+        const cloudProfile = await getProfile(supabase);
+        const nextProfile = cloudProfile || loadProfile(emptyProfile);
+        setProfile(nextProfile);
+        saveProfile(nextProfile);
+      } catch (error) {
+        console.error(error);
+        setProfile(loadProfile(emptyProfile));
+        setMessage("Loaded local profile cache because cloud data could not be reached.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadProfileData();
+  }, [router]);
 
   function updateField(field: keyof UserProfile, value: string) {
     setProfile((current) => ({ ...current, [field]: value }));
@@ -45,7 +73,7 @@ export default function ProfilePage() {
     });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     const nextErrors = validateProfile(profile);
@@ -56,8 +84,16 @@ export default function ProfilePage() {
       return;
     }
 
-    saveProfile(profile);
-    setMessage("Profile saved. Future analyses will use these goals.");
+    try {
+      const savedProfile = await upsertProfile(createClient(), profile);
+      saveProfile(savedProfile);
+      setProfile(savedProfile);
+      setMessage("Profile saved. Future analyses will use these goals.");
+    } catch (error) {
+      console.error(error);
+      saveProfile(profile);
+      setMessage("Saved locally because cloud profile save failed.");
+    }
   }
 
   function errorFor(field: keyof UserProfile) {
@@ -70,6 +106,12 @@ export default function ProfilePage() {
         <p className="text-sm font-bold tracking-wide text-green-400">CUT CHECK-IN</p>
         <h1 className="mt-1 text-4xl font-black">Profile</h1>
         <MainNav />
+
+        {isLoading && (
+          <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-900/70 p-4 text-sm font-semibold text-slate-300">
+            Loading synced profile...
+          </div>
+        )}
 
         {message && (
           <div className="mt-5 rounded-2xl border border-green-500/40 bg-green-500/10 p-4 text-sm font-semibold text-green-300">

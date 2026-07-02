@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { AnalysisCards } from "../components/AnalysisCards";
 import { CheckInForm } from "../components/CheckInForm";
 import { CheckInHistory } from "../components/CheckInHistory";
 import { DashboardStats } from "../components/DashboardStats";
 import { MainNav } from "../components/MainNav";
+import { MigrationPrompt } from "../components/MigrationPrompt";
+import { useRouter } from "next/navigation";
 import { buildAIContext } from "../lib/aiContext";
 import {
   createSignature,
@@ -18,16 +20,37 @@ import {
 import { applyFoodMemoryDetections } from "../lib/foodMemory";
 import { emptyProfile } from "../lib/profile";
 import {
-  findStoredAnalysis,
   loadCheckIns,
   loadFoodMemory,
   loadProfile,
   loadStoredAnalyses,
   saveCheckIns,
   saveFoodMemory,
+  saveProfile,
   saveStoredAnalysis,
 } from "../lib/storage";
-import type { Analysis, CheckIn, UserProfile } from "../lib/types";
+import { createClient } from "../lib/supabase/client";
+import {
+  getAnalyses,
+  getCheckIns,
+  getFoodMemory,
+  getProfile,
+  upsertFoodMemory,
+  upsertAnalysis,
+  upsertCheckIn,
+} from "../lib/supabase/queries";
+import type { Analysis, CheckIn, FoodMemoryItem, StoredAnalysis, UserProfile } from "../lib/types";
+
+const MIGRATION_KEY = "cut-supabase-migrated";
+
+function hasPendingLocalMigrationData() {
+  return (
+    loadCheckIns().length > 0 ||
+    loadStoredAnalyses().length > 0 ||
+    loadFoodMemory().length > 0 ||
+    localStorage.getItem("cut-checkin-profile") !== null
+  );
+}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -44,40 +67,100 @@ function getHeroMessage(savedCount: number, streak: number, hasTodayLog: boolean
 }
 
 export default function Home() {
+  const router = useRouter();
   const [form, setForm] = useState<CheckIn>(emptyCheckIn);
   const [saved, setSaved] = useState<CheckIn[]>([]);
+  const [storedAnalyses, setStoredAnalyses] = useState<StoredAnalysis[]>([]);
+  const [foodMemory, setFoodMemory] = useState<FoodMemoryItem[]>([]);
   const [message, setMessage] = useState("");
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analysisError, setAnalysisError] = useState("");
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [lastAnalysisSignature, setLastAnalysisSignature] = useState("");
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const analyzingRef = useRef(false);
   const analysisSectionRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setSaved(loadCheckIns());
-      setProfile(loadProfile(emptyProfile));
-    }, 0);
+  const loadCloudData = useCallback(async (syncLocalCache = true) => {
+    const supabase = createClient();
+    const [cloudProfile, cloudCheckIns, cloudAnalyses, cloudFoodMemory] =
+      await Promise.all([
+        getProfile(supabase),
+        getCheckIns(supabase),
+        getAnalyses(supabase),
+        getFoodMemory(supabase),
+      ]);
+    const nextProfile = cloudProfile || loadProfile(emptyProfile);
 
-    return () => window.clearTimeout(timeout);
+    setProfile(nextProfile);
+    setSaved(cloudCheckIns);
+    setStoredAnalyses(cloudAnalyses);
+    setFoodMemory(cloudFoodMemory);
+
+    if (syncLocalCache) {
+      saveProfile(nextProfile);
+      saveCheckIns(cloudCheckIns);
+      saveFoodMemory(cloudFoodMemory);
+    }
   }, []);
+
+  useEffect(() => {
+    async function loadInitialData() {
+      setIsLoading(true);
+
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.replace("/login");
+          return;
+        }
+
+        await loadCloudData(
+          localStorage.getItem(MIGRATION_KEY) === "true" ||
+            !hasPendingLocalMigrationData()
+        );
+      } catch (error) {
+        console.error(error);
+        setSaved(loadCheckIns());
+        setStoredAnalyses(loadStoredAnalyses());
+        setFoodMemory(loadFoodMemory());
+        setProfile(loadProfile(emptyProfile));
+        setMessage("Loaded local cache because cloud data could not be reached.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadInitialData();
+  }, [loadCloudData, router]);
 
   function updateField(field: keyof CheckIn, value: string) {
     setForm((prev) => ({ ...prev, [field]: value }));
   }
 
-  function rememberAnalysis(checkIn: CheckIn, savedCheckIns: CheckIn[]) {
+  function rememberAnalysis(
+    checkIn: CheckIn,
+    savedCheckIns: CheckIn[],
+    analyses = storedAnalyses,
+    memories = foodMemory,
+    currentProfile = profile
+  ) {
     const input = buildAIContext({
       currentCheckIn: checkIn,
-      foodMemory: loadFoodMemory(),
+      foodMemory: memories,
       savedCheckIns,
-      profile: loadProfile(emptyProfile),
-      storedAnalyses: loadStoredAnalyses(),
+      profile: currentProfile,
+      storedAnalyses: analyses,
     });
     const signature = createSignature(input);
-    const stored = findStoredAnalysis(checkIn.date, signature);
+    const stored = analyses.find(
+      (item) => item.date === checkIn.date && item.signature === signature
+    );
 
     if (stored) {
       setAnalysis(stored.analysis);
@@ -100,9 +183,11 @@ export default function Home() {
     }, 100);
   }
 
-  function saveCheckIn() {
+  async function saveCheckIn() {
     const updated = saveCheckInToList(saved, form);
+    const supabase = createClient();
 
+    await upsertCheckIn(supabase, form);
     saveCheckIns(updated);
     setSaved(updated);
     setMessage(`Saved check-in for ${form.date}.`);
@@ -137,7 +222,7 @@ export default function Home() {
     setAnalysisError("");
 
     try {
-      const updated = saveCheckIn();
+      const updated = await saveCheckIn();
       const { checkInLog, signature, stored } = rememberAnalysis(form, updated);
 
       if (stored) {
@@ -174,18 +259,31 @@ export default function Home() {
       setAnalysis(data.analysis || null);
       setLastAnalysisSignature(signature);
       saveStoredAnalysis(form.date, signature, data.analysis);
-      const updatedFoodMemory = applyFoodMemoryDetections(loadFoodMemory(), form);
-      saveFoodMemory(updatedFoodMemory);
+      await upsertAnalysis(createClient(), form.date, signature, data.analysis);
+      const nextStoredAnalyses = [
+        ...storedAnalyses.filter(
+          (item) => !(item.date === form.date && item.signature === signature)
+        ),
+        { date: form.date, signature, analysis: data.analysis },
+      ];
+      setStoredAnalyses(nextStoredAnalyses);
+      const updatedFoodMemory = applyFoodMemoryDetections(foodMemory, form);
+      const syncedFoodMemory = await Promise.all(
+        updatedFoodMemory.map((item) => upsertFoodMemory(createClient(), item))
+      );
+      saveFoodMemory(syncedFoodMemory);
+      setFoodMemory(syncedFoodMemory);
       const updatedInput = buildAIContext({
         currentCheckIn: form,
-        foodMemory: updatedFoodMemory,
+        foodMemory: syncedFoodMemory,
         savedCheckIns: updated,
-        profile: loadProfile(emptyProfile),
-        storedAnalyses: loadStoredAnalyses(),
+        profile,
+        storedAnalyses: nextStoredAnalyses,
       });
       const updatedSignature = createSignature(updatedInput);
       if (updatedSignature !== signature) {
         saveStoredAnalysis(form.date, updatedSignature, data.analysis);
+        await upsertAnalysis(createClient(), form.date, updatedSignature, data.analysis);
         setLastAnalysisSignature(updatedSignature);
       }
       setMessage(`Saved and analyzed check-in for ${form.date}.`);
@@ -258,6 +356,14 @@ export default function Home() {
           </div>
         </header>
         <MainNav />
+
+        {isLoading && (
+          <div className="mt-5 rounded-3xl border border-white/10 bg-slate-950 p-5 text-sm font-semibold text-slate-300">
+            Loading your synced coach data...
+          </div>
+        )}
+
+        {!isLoading && <MigrationPrompt onImported={loadCloudData} />}
 
         <DashboardStats
           {...stats}

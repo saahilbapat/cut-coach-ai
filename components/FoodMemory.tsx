@@ -2,11 +2,19 @@
 
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useRouter } from "next/navigation";
 import {
   addOrUpdateFoodMemory,
-  deleteFoodMemory,
+  deleteFoodMemory as deleteLocalFoodMemory,
   loadFoodMemory,
+  saveFoodMemory,
 } from "../lib/storage";
+import { createClient } from "../lib/supabase/client";
+import {
+  deleteFoodMemory as deleteCloudFoodMemory,
+  getFoodMemory,
+  upsertFoodMemory,
+} from "../lib/supabase/queries";
 import type { FoodMemoryItem } from "../lib/types";
 
 const emptyForm = {
@@ -48,18 +56,42 @@ function joinAliases(value: string[]) {
 }
 
 export function FoodMemory() {
+  const router = useRouter();
   const [items, setItems] = useState<FoodMemoryItem[]>([]);
   const [form, setForm] = useState(emptyForm);
   const [editingId, setEditingId] = useState("");
   const [message, setMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const timeout = window.setTimeout(() => {
-      setItems(loadFoodMemory());
-    }, 0);
+    async function loadMemory() {
+      setIsLoading(true);
 
-    return () => window.clearTimeout(timeout);
-  }, []);
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session) {
+          router.replace("/login");
+          return;
+        }
+
+        const cloudMemory = await getFoodMemory(supabase);
+        setItems(cloudMemory);
+        saveFoodMemory(cloudMemory);
+      } catch (error) {
+        console.error(error);
+        setItems(loadFoodMemory());
+        setMessage("Loaded local food memory cache because cloud data could not be reached.");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    loadMemory();
+  }, [router]);
 
   function resetForm() {
     setForm(emptyForm);
@@ -83,7 +115,17 @@ export function FoodMemory() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  function findExistingMemory(name: string, aliases: string[]) {
+    const incoming = [name, ...aliases].map((value) => value.trim().toLowerCase());
+
+    return items.find((item) =>
+      [item.name, ...item.aliases]
+        .map((value) => value.trim().toLowerCase())
+        .some((value) => incoming.includes(value))
+    );
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!form.name.trim()) {
@@ -92,11 +134,14 @@ export function FoodMemory() {
     }
 
     const now = new Date().toISOString();
-    const existing = editingId ? items.find((item) => item.id === editingId) : null;
+    const aliases = splitAliases(form.aliases);
+    const existing =
+      (editingId ? items.find((item) => item.id === editingId) : null) ||
+      findExistingMemory(form.name, aliases);
     const nextItem: FoodMemoryItem = {
-      id: editingId || `food-${Date.now()}`,
+      id: existing?.id || `food-${Date.now()}`,
       name: form.name.trim(),
-      aliases: splitAliases(form.aliases),
+      aliases,
       category: form.category,
       description: form.description.trim(),
       estimatedCalories: form.estimatedCalories.trim() || undefined,
@@ -111,15 +156,37 @@ export function FoodMemory() {
       updatedAt: now,
     };
 
-    const next = addOrUpdateFoodMemory(nextItem);
-    setItems(next);
-    setMessage(editingId ? "Food memory updated." : "Food memory added.");
-    resetForm();
+    try {
+      const savedItem = await upsertFoodMemory(createClient(), nextItem);
+      const next = [
+        ...items.filter((item) => item.id !== savedItem.id),
+        savedItem,
+      ].sort((a, b) => b.timesSeen - a.timesSeen);
+      setItems(next);
+      saveFoodMemory(next);
+      setMessage(editingId ? "Food memory updated." : "Food memory added.");
+      resetForm();
+    } catch (error) {
+      console.error(error);
+      const next = addOrUpdateFoodMemory(nextItem);
+      setItems(next);
+      setMessage("Saved locally because cloud food memory save failed.");
+      resetForm();
+    }
   }
 
-  function handleDelete(id: string) {
-    const next = deleteFoodMemory(id);
-    setItems(next);
+  async function handleDelete(id: string) {
+    try {
+      await deleteCloudFoodMemory(createClient(), id);
+      const next = items.filter((item) => item.id !== id);
+      setItems(next);
+      saveFoodMemory(next);
+    } catch (error) {
+      console.error(error);
+      const next = deleteLocalFoodMemory(id);
+      setItems(next);
+    }
+
     if (editingId === id) resetForm();
     setMessage("Food memory deleted.");
   }
@@ -129,6 +196,12 @@ export function FoodMemory() {
       {message && (
         <div className="rounded-3xl border border-emerald-400/30 bg-emerald-400/10 p-4 text-sm font-semibold text-emerald-200">
           {message}
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="rounded-3xl border border-white/10 bg-slate-950 p-4 text-sm font-semibold text-slate-300">
+          Loading synced food memory...
         </div>
       )}
 
