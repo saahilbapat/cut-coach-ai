@@ -4,9 +4,13 @@ import { useState } from "react";
 import type { FormEvent } from "react";
 import { createClient } from "../lib/supabase/client";
 
-export function LoginForm() {
+type LoginFormProps = {
+  initialMessage?: string;
+};
+
+export function LoginForm({ initialMessage = "" }: LoginFormProps) {
   const [email, setEmail] = useState("");
-  const [message, setMessage] = useState("");
+  const [message, setMessage] = useState(initialMessage);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -16,11 +20,10 @@ export function LoginForm() {
 
     try {
       const supabase = createClient();
-      const origin = window.location.origin;
       const { error } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim(),
         options: {
-          emailRedirectTo: `${origin}/auth/callback`,
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
         },
       });
 
@@ -28,7 +31,7 @@ export function LoginForm() {
 
       setMessage("Check your email for a magic login link.");
     } catch (error) {
-      console.error(error);
+      console.error("[login] Could not send magic link:", error);
       setMessage("Could not send login link. Check the email and try again.");
     } finally {
       setIsSubmitting(false);
