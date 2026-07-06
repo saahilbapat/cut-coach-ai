@@ -87,3 +87,7 @@ export function validateProfile(profile: UserProfile) {
 
   return errors;
 }
+
+export function isProfileComplete(profile: UserProfile | null) {
+  return profile !== null && Object.keys(validateProfile(profile)).length === 0;
+}

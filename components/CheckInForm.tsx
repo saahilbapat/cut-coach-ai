@@ -11,6 +11,8 @@ type CheckInFormProps = {
 };
 
 export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckInFormProps) {
+  const foodGuidance =
+    "Be as descriptive as you can. If you know portions, brands, restaurant names, sauces, or amounts, include them.";
   const input =
     "mt-2 w-full rounded-[1.35rem] border border-white/10 bg-black/35 px-4 py-4 text-base text-white outline-none transition duration-200 placeholder:text-slate-600 focus:border-emerald-300 focus:bg-black/50";
   const label = "block text-sm font-bold text-slate-300";
@@ -78,14 +80,17 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
         <div className={section}>
           <div>
             <h3 className={sectionTitle}>Training</h3>
-            <p className={sectionCopy}>Lift, cardio, rest day context, and effort.</p>
+            <p className={sectionCopy}>
+              Add the workout type, exercises, sets/reps if you know them, effort, duration,
+              and cardio details.
+            </p>
           </div>
 
           <div className="mt-5">
             <label className={label}>Workout</label>
             <textarea
               className={textarea}
-              placeholder="Push day. Bench, shoulder press, triceps. Solid effort, left 1-2 reps in reserve."
+              placeholder="Push day: bench 3x8, shoulder press 3x10, triceps 3x12. Solid effort, 1-2 reps in reserve. 45 min lift, 20 min incline walk."
               value={form.workout}
               onChange={(event) => updateField("workout", event.target.value)}
             />
@@ -110,7 +115,7 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
               <label className={label}>Lift Duration</label>
               <input
                 className={input}
-                placeholder="45 min"
+                placeholder="45 min lift"
                 value={form.workoutDuration}
                 onChange={(event) => updateField("workoutDuration", event.target.value)}
               />
@@ -119,7 +124,7 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
               <label className={label}>Cardio Duration</label>
               <input
                 className={input}
-                placeholder="20 min"
+                placeholder="20 min incline walk"
                 value={form.cardioDuration}
                 onChange={(event) => updateField("cardioDuration", event.target.value)}
               />
@@ -130,7 +135,7 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
             <label className={label}>Cardio Type</label>
             <input
               className={input}
-              placeholder="Incline walk, run, bike, or none"
+              placeholder="Incline walk, run, bike, intervals, or none"
               value={form.cardioType}
               onChange={(event) => updateField("cardioType", event.target.value)}
             />
@@ -141,15 +146,26 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
           <div>
             <h3 className={sectionTitle}>Food & Drinks</h3>
             <p className={sectionCopy}>
-              Use natural language. Portions help, but the coach can estimate.
+              {foodGuidance} Example: 3 chicken tenderloins, 1 cup rice, Qdoba bowl
+              with double chicken, light cheese, pico, corn salsa.
             </p>
+          </div>
+
+          <div className="mt-5">
+            <label className={label}>Breakfast</label>
+            <textarea
+              className={textarea}
+              placeholder={"Greek yogurt bowl\n1 cup Greek yogurt\nGranola\nBlueberries\nFairlife shake"}
+              value={form.breakfast}
+              onChange={(event) => updateField("breakfast", event.target.value)}
+            />
           </div>
 
           <div className="mt-5">
             <label className={label}>Lunch</label>
             <textarea
               className={textarea}
-              placeholder={"Qdoba bowl\nDouble chicken\nBrown rice\nFajita veggies\nCheese"}
+              placeholder={"Qdoba bowl\nDouble chicken\nBrown rice\nLight cheese\nPico\nCorn salsa"}
               value={form.lunch}
               onChange={(event) => updateField("lunch", event.target.value)}
             />

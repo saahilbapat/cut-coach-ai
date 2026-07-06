@@ -4,7 +4,12 @@ import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { MainNav } from "../../components/MainNav";
-import { cutConcernOptions, emptyProfile, validateProfile } from "../../lib/profile";
+import {
+  cutConcernOptions,
+  emptyProfile,
+  isProfileComplete,
+  validateProfile,
+} from "../../lib/profile";
 import { loadProfile, saveProfile } from "../../lib/storage";
 import { createClient } from "../../lib/supabase/client";
 import { getProfile, upsertProfile } from "../../lib/supabase/queries";
@@ -22,6 +27,7 @@ export default function ProfilePage() {
   const [errors, setErrors] = useState<Partial<Record<keyof UserProfile, string>>>({});
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [wasIncompleteOnLoad, setWasIncompleteOnLoad] = useState(false);
 
   useEffect(() => {
     async function loadProfileData() {
@@ -41,10 +47,13 @@ export default function ProfilePage() {
         const cloudProfile = await getProfile(supabase);
         const nextProfile = cloudProfile || loadProfile(emptyProfile);
         setProfile(nextProfile);
+        setWasIncompleteOnLoad(!isProfileComplete(nextProfile));
         saveProfile(nextProfile);
       } catch (error) {
         console.error(error);
-        setProfile(loadProfile(emptyProfile));
+        const localProfile = loadProfile(emptyProfile);
+        setProfile(localProfile);
+        setWasIncompleteOnLoad(!isProfileComplete(localProfile));
         setMessage("Loaded local profile cache because cloud data could not be reached.");
       } finally {
         setIsLoading(false);
@@ -89,6 +98,9 @@ export default function ProfilePage() {
       saveProfile(savedProfile);
       setProfile(savedProfile);
       setMessage("Profile saved. Future analyses will use these goals.");
+      if (wasIncompleteOnLoad) {
+        router.replace("/");
+      }
     } catch (error) {
       console.error(error);
       saveProfile(profile);

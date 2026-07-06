@@ -100,6 +100,7 @@ function normalize(value: string) {
 
 function getFoodText(checkIn: CheckIn) {
   return [
+    checkIn.breakfast,
     checkIn.lunch,
     checkIn.dinner,
     checkIn.snacks,

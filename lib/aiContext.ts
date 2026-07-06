@@ -129,7 +129,9 @@ function includesTerm(text: string, term: string) {
 
 function getFoodText(checkIns: CheckIn[]) {
   return checkIns
-    .map((item) => [item.lunch, item.dinner, item.snacks, item.notes].join(" "))
+    .map((item) =>
+      [item.breakfast, item.lunch, item.dinner, item.snacks, item.notes].join(" ")
+    )
     .join(" ");
 }
 

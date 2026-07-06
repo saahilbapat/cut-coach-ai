@@ -31,6 +31,7 @@ type CheckInRow = {
   workout_duration: string | null;
   cardio_type: string | null;
   cardio_duration: string | null;
+  breakfast?: string | null;
   lunch: string | null;
   dinner: string | null;
   snacks: string | null;
@@ -149,6 +150,7 @@ function mapCheckInRow(row: CheckInRow): CheckIn {
     workoutDuration: row.workout_duration || "",
     cardioType: row.cardio_type || "",
     cardioDuration: row.cardio_duration || "",
+    breakfast: row.breakfast || "",
     lunch: row.lunch || "",
     dinner: row.dinner || "",
     snacks: row.snacks || "",
@@ -172,6 +174,7 @@ function mapCheckInToRow(checkIn: CheckIn, userId: string) {
     workout_duration: checkIn.workoutDuration,
     cardio_type: checkIn.cardioType,
     cardio_duration: checkIn.cardioDuration,
+    breakfast: checkIn.breakfast,
     lunch: checkIn.lunch,
     dinner: checkIn.dinner,
     snacks: checkIn.snacks,

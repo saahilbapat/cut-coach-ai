@@ -25,8 +25,31 @@ function readJsonArray<T>(key: string): T[] {
   return Array.isArray(value) ? (value as T[]) : [];
 }
 
+function normalizeCheckIn(checkIn: Partial<CheckIn>): CheckIn {
+  return {
+    date: checkIn.date || "",
+    weight: checkIn.weight || "",
+    steps: checkIn.steps || "",
+    workout: checkIn.workout || "",
+    workoutType: checkIn.workoutType || "",
+    workoutDuration: checkIn.workoutDuration || "",
+    cardioType: checkIn.cardioType || "",
+    cardioDuration: checkIn.cardioDuration || "",
+    breakfast: checkIn.breakfast || "",
+    lunch: checkIn.lunch || "",
+    dinner: checkIn.dinner || "",
+    snacks: checkIn.snacks || "",
+    alcohol: checkIn.alcohol || "",
+    water: checkIn.water || "",
+    hunger: checkIn.hunger || "",
+    energy: checkIn.energy || "",
+    mood: checkIn.mood || "",
+    notes: checkIn.notes || "",
+  };
+}
+
 export function loadCheckIns() {
-  return readJsonArray<CheckIn>(CHECK_INS_KEY);
+  return readJsonArray<Partial<CheckIn>>(CHECK_INS_KEY).map(normalizeCheckIn);
 }
 
 export function saveCheckIns(checkIns: CheckIn[]) {

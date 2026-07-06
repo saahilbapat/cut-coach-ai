@@ -5,7 +5,6 @@ import type { FormEvent } from "react";
 import { AnalysisCards } from "../components/AnalysisCards";
 import { CheckInForm } from "../components/CheckInForm";
 import { CheckInHistory } from "../components/CheckInHistory";
-import { DashboardStats } from "../components/DashboardStats";
 import { MainNav } from "../components/MainNav";
 import { MigrationPrompt } from "../components/MigrationPrompt";
 import { useRouter } from "next/navigation";
@@ -50,13 +49,6 @@ function hasPendingLocalMigrationData() {
     loadFoodMemory().length > 0 ||
     localStorage.getItem("cut-checkin-profile") !== null
   );
-}
-
-function getGreeting() {
-  const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
 }
 
 function getHeroMessage(savedCount: number, streak: number, hasTodayLog: boolean) {
@@ -227,13 +219,13 @@ export default function Home() {
 
       if (stored) {
         setMessage(`Saved check-in for ${form.date}. Showing saved analysis.`);
-        scrollToAnalysis();
+        if (updated.length >= 2) scrollToAnalysis();
         return;
       }
 
       if (analysis && signature === lastAnalysisSignature) {
         setMessage(`Saved check-in for ${form.date}. Showing existing analysis.`);
-        scrollToAnalysis();
+        if (updated.length >= 2) scrollToAnalysis();
         return;
       }
 
@@ -287,11 +279,11 @@ export default function Home() {
         setLastAnalysisSignature(updatedSignature);
       }
       setMessage(`Saved and analyzed check-in for ${form.date}.`);
-      scrollToAnalysis();
+      if (updated.length >= 2) scrollToAnalysis();
     } catch (error) {
       console.error(error);
       setAnalysisError("Could not analyze this check-in. Check the server console.");
-      scrollToAnalysis();
+      if (saved.length >= 2) scrollToAnalysis();
     } finally {
       analyzingRef.current = false;
       setIsAnalyzing(false);
@@ -302,6 +294,7 @@ export default function Home() {
   const hasTodayLog = saved.some((item) => item.date === today);
   const displayName = profile.name.trim() || "there";
   const heroMessage = getHeroMessage(saved.length, stats.streak, hasTodayLog);
+  const dashboardUnlocked = saved.length >= 2;
   const formattedToday = new Intl.DateTimeFormat("en", {
     month: "long",
     day: "numeric",
@@ -309,46 +302,40 @@ export default function Home() {
   }).format(new Date(`${today}T12:00:00`));
 
   return (
-    <main className="min-h-screen bg-black px-4 py-5 text-white sm:px-6 sm:py-8">
+    <main className="min-h-screen overflow-x-hidden bg-black px-3 py-3 text-white sm:px-6 sm:py-8">
       <div className="mx-auto w-full max-w-7xl">
-        <header className="overflow-hidden rounded-[2.5rem] border border-white/10 bg-slate-950 p-5 shadow-2xl shadow-black/50 sm:p-8 lg:p-10">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+        <header className="rounded-[1.75rem] border border-white/10 bg-slate-950 p-4 shadow-2xl shadow-black/50 sm:rounded-[2.5rem] sm:p-8 lg:p-9">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div className="max-w-3xl">
               <p className="text-xs font-black uppercase tracking-[0.28em] text-emerald-400">
                 Cut Coach AI
               </p>
-              <h1 className="mt-5 text-4xl font-black tracking-tight text-white sm:text-6xl lg:text-7xl">
-                {getGreeting()}, {displayName}.
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
+                Today&apos;s Log
               </h1>
-              <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-300">
-                Day {Math.max(saved.length, 1)} of your journey. {heroMessage}
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
+                {displayName}, {heroMessage} {dashboardUnlocked ? "Dashboard trends are unlocked." : "Log at least 2 days to unlock your dashboard trends."}
               </p>
             </div>
 
-            <div className="grid gap-3 sm:min-w-96 sm:grid-cols-2">
-              <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4">
+            <div className="grid gap-2 sm:min-w-80 sm:grid-cols-2">
+              <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.04] p-3 sm:rounded-[1.75rem] sm:p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
                   Today
                 </p>
                 <p className="mt-2 text-base font-black text-white">{formattedToday}</p>
               </div>
-              <div className="rounded-[1.75rem] border border-emerald-400/20 bg-emerald-400/10 p-4">
+              <div className="rounded-[1.25rem] border border-emerald-400/20 bg-emerald-400/10 p-3 sm:rounded-[1.75rem] sm:p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  Streak
+                  Logs
                 </p>
                 <p className="mt-2 text-base font-black text-emerald-200">
-                  {stats.streak} days
+                  {saved.length} days
                 </p>
-              </div>
-              <div className="rounded-[1.75rem] border border-white/10 bg-black/25 p-4 sm:col-span-2">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                  Coach Status
-                </p>
-                <p className="mt-2 text-xl font-black text-white">{heroMessage}</p>
               </div>
               <button
                 onClick={startToday}
-                className="rounded-[1.75rem] bg-emerald-400 p-4 text-sm font-black text-black shadow-xl shadow-emerald-400/20 transition duration-300 hover:-translate-y-0.5 hover:bg-emerald-300 sm:col-span-2"
+                className="min-h-12 rounded-[1.25rem] bg-emerald-400 p-3 text-sm font-black text-black shadow-xl shadow-emerald-400/20 transition duration-300 hover:-translate-y-0.5 hover:bg-emerald-300 sm:col-span-2 sm:rounded-[1.75rem] sm:p-4"
               >
                 Start / Load Today
               </button>
@@ -365,20 +352,19 @@ export default function Home() {
 
         {!isLoading && <MigrationPrompt onImported={loadCloudData} />}
 
-        <DashboardStats
-          {...stats}
-          cutScore={analysis?.cutScore}
-          goalWeight={profile.goalWeight}
-          saved={saved}
-        />
-
         {message && (
           <div className="mt-5 rounded-3xl border border-green-500/30 bg-green-500/10 p-4 text-sm font-semibold text-green-200">
             {message}
           </div>
         )}
 
-        <div className="mt-8 grid gap-6 lg:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)] lg:items-start">
+        {!dashboardUnlocked && (
+          <div className="mt-5 rounded-[1.75rem] border border-white/10 bg-slate-950 p-4 text-sm font-semibold leading-6 text-slate-300 shadow-xl shadow-black/20">
+            Log at least 2 days to unlock your dashboard trends.
+          </div>
+        )}
+
+        <div className={dashboardUnlocked ? "mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)] lg:items-start" : "mt-5"}>
           <CheckInForm
             form={form}
             isAnalyzing={isAnalyzing}
@@ -386,16 +372,18 @@ export default function Home() {
             updateField={updateField}
           />
 
-          <div ref={analysisSectionRef} className="scroll-mt-6 space-y-6 lg:sticky lg:top-6">
-            <AnalysisCards
-              analysis={analysis}
-              analysisError={analysisError}
-              isAnalyzing={isAnalyzing}
-            />
-          </div>
+          {dashboardUnlocked && (
+            <div ref={analysisSectionRef} className="scroll-mt-24 space-y-6 lg:sticky lg:top-24">
+              <AnalysisCards
+                analysis={analysis}
+                analysisError={analysisError}
+                isAnalyzing={isAnalyzing}
+              />
+            </div>
+          )}
         </div>
 
-        <div className="mt-10">
+        <div className="mt-8 pb-6">
           <CheckInHistory saved={saved} loadCheckIn={loadCheckIn} />
         </div>
       </div>

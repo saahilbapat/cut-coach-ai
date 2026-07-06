@@ -7,6 +7,7 @@ export type CheckIn = {
   workoutDuration: string;
   cardioType: string;
   cardioDuration: string;
+  breakfast: string;
   lunch: string;
   dinner: string;
   snacks: string;

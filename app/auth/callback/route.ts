@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
+import { isProfileComplete } from "../../../lib/profile";
 import { createClient } from "../../../lib/supabase/server";
+import { getProfile } from "../../../lib/supabase/queries";
 
 const AUTH_ERROR_MESSAGES = {
   missing_code: "The login link is missing an auth code. Request a new magic link.",
@@ -41,5 +43,8 @@ export async function GET(request: Request) {
     return redirectToLogin(requestUrl, "session_missing");
   }
 
-  return NextResponse.redirect(new URL("/", requestUrl.origin));
+  const profile = await getProfile(supabase);
+  const destination = isProfileComplete(profile) ? "/" : "/profile";
+
+  return NextResponse.redirect(new URL(destination, requestUrl.origin));
 }

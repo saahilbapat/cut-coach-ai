@@ -49,10 +49,13 @@ type MigrationPromptProps = {
   onImported: () => Promise<void> | void;
 };
 
+type MessageTone = "neutral" | "success" | "error";
+
 export function MigrationPrompt({ onImported }: MigrationPromptProps) {
   const [isVisible, setIsVisible] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [message, setMessage] = useState("");
+  const [messageTone, setMessageTone] = useState<MessageTone>("neutral");
 
   useEffect(() => {
     const timeout = window.setTimeout(() => {
@@ -65,6 +68,7 @@ export function MigrationPrompt({ onImported }: MigrationPromptProps) {
   async function importToAccount() {
     setIsImporting(true);
     setMessage("");
+    setMessageTone("neutral");
 
     try {
       const supabase = createClient();
@@ -79,6 +83,8 @@ export function MigrationPrompt({ onImported }: MigrationPromptProps) {
       const localCheckIns = loadCheckIns();
       const localAnalyses = loadStoredAnalyses();
       const localFoodMemory = loadFoodMemory();
+      const foundCheckIns = localCheckIns.length;
+      const foundFoodMemory = localFoodMemory.length;
 
       if (!remoteProfile) {
         await runImportStep("Profile import", () => upsertProfile(supabase, localProfile));
@@ -129,12 +135,29 @@ export function MigrationPrompt({ onImported }: MigrationPromptProps) {
 
       await onImported();
       localStorage.setItem(MIGRATION_KEY, "true");
-      setMessage(
-        `Local data imported to your account. Imported ${importedCheckIns} check-ins and ${importedFoodMemory} food memory items.`
-      );
+      const totalFound = foundCheckIns + foundFoodMemory;
+      const totalImported = importedCheckIns + importedFoodMemory;
+
+      if (totalFound === 0) {
+        setMessageTone("neutral");
+        setMessage(
+          "No local check-ins or food memory were found to import on this device."
+        );
+      } else if (totalImported === 0) {
+        setMessageTone("neutral");
+        setMessage(
+          `Found ${foundCheckIns} local check-ins and ${foundFoodMemory} food memory items. Imported 0 check-ins and 0 food memory items because those local items already exist in your account.`
+        );
+      } else {
+        setMessageTone("success");
+        setMessage(
+          `Found ${foundCheckIns} local check-ins and ${foundFoodMemory} food memory items. Successfully imported ${importedCheckIns} check-ins and ${importedFoodMemory} food memory items.`
+        );
+      }
       setIsVisible(false);
     } catch (error) {
       console.error(error);
+      setMessageTone("error");
       setMessage(`Import failed. Local data was not deleted. ${getErrorMessage(error)}`);
     } finally {
       setIsImporting(false);
@@ -147,8 +170,15 @@ export function MigrationPrompt({ onImported }: MigrationPromptProps) {
 
   if (!isVisible && !message) return null;
 
+  const sectionClass =
+    messageTone === "error"
+      ? "mt-5 rounded-[2rem] border border-red-400/30 bg-red-400/10 p-5 text-red-50 shadow-xl shadow-black/20"
+      : messageTone === "success"
+        ? "mt-5 rounded-[2rem] border border-emerald-400/30 bg-emerald-400/10 p-5 text-emerald-50 shadow-xl shadow-black/20"
+        : "mt-5 rounded-[2rem] border border-white/10 bg-slate-950 p-5 text-slate-100 shadow-xl shadow-black/20";
+
   return (
-    <section className="mt-5 rounded-[2rem] border border-emerald-400/30 bg-emerald-400/10 p-5 text-emerald-50 shadow-xl shadow-black/20">
+    <section className={sectionClass}>
       {message && (
         <p className="mb-4 rounded-2xl border border-white/10 bg-black/20 p-3 text-sm font-semibold">
           {message}

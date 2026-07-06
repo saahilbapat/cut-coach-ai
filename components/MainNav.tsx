@@ -5,7 +5,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "../lib/supabase/client";
 
 const navItems = [
-  { href: "/", label: "Dashboard" },
+  { href: "/", label: "Log" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/food-memory", label: "Food Memory" },
   { href: "/profile", label: "Profile" },
 ];
@@ -22,7 +23,7 @@ export function MainNav() {
   }
 
   return (
-    <nav className="mt-5 grid grid-cols-2 gap-2 rounded-[2rem] border border-white/10 bg-slate-950/80 p-1.5 shadow-xl shadow-black/20 backdrop-blur sm:grid-cols-4">
+    <nav className="sticky top-2 z-20 mt-4 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-slate-950/90 p-1.5 shadow-xl shadow-black/20 backdrop-blur sm:mt-5 sm:grid-cols-5 sm:rounded-[2rem]">
       {navItems.map((item) => {
         const isActive = pathname === item.href;
 
@@ -32,8 +33,8 @@ export function MainNav() {
             href={item.href}
             className={
               isActive
-                ? "rounded-full bg-emerald-400 px-3 py-3 text-center text-sm font-black text-black shadow-lg shadow-emerald-400/15"
-                : "rounded-full px-3 py-3 text-center text-sm font-bold text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
+                ? "min-h-12 rounded-full bg-emerald-400 px-3 py-3 text-center text-sm font-black text-black shadow-lg shadow-emerald-400/15"
+                : "min-h-12 rounded-full px-3 py-3 text-center text-sm font-bold text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
             }
           >
             {item.label}
@@ -43,7 +44,7 @@ export function MainNav() {
       <button
         type="button"
         onClick={logout}
-        className="rounded-full px-3 py-3 text-center text-sm font-bold text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
+        className="min-h-12 rounded-full px-3 py-3 text-center text-sm font-bold text-slate-400 transition duration-200 hover:bg-white/[0.04] hover:text-white"
       >
         Logout
       </button>
