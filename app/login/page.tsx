@@ -1,7 +1,7 @@
 import { LoginForm } from "../../components/LoginForm";
 
 const fallbackErrorMessage =
-  "We could not finish signing you in. Request a new magic link and try again.";
+  "We could not finish signing you in. Use your email and password to try again.";
 
 type LoginPageProps = {
   searchParams: Promise<{
