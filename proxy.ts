@@ -4,7 +4,8 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function proxy(request: NextRequest) {
   if (
     request.nextUrl.pathname === "/login" ||
-    request.nextUrl.pathname.startsWith("/auth/callback")
+    request.nextUrl.pathname.startsWith("/auth/callback") ||
+    request.nextUrl.pathname.startsWith("/auth/confirm")
   ) {
     return NextResponse.next({ request });
   }

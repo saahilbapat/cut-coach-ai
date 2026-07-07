@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import type { EmailOtpType, SupabaseClient } from "@supabase/supabase-js";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { isProfileComplete } from "../../../lib/profile";
 import { createClient } from "../../../lib/supabase/server";
 import { getProfile } from "../../../lib/supabase/queries";
@@ -30,24 +30,17 @@ async function getDestination(supabase: SupabaseClient) {
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
-  const tokenHash = requestUrl.searchParams.get("token_hash");
-  const type = requestUrl.searchParams.get("type");
 
-  if (!code && !tokenHash) {
-    console.warn("[auth/callback] Missing auth code or token hash.");
+  if (!code) {
+    console.warn("[auth/callback] Missing auth code.");
     return redirectToLogin(requestUrl);
   }
 
   const supabase = await createClient();
-  const { error } = code
-    ? await supabase.auth.exchangeCodeForSession(code)
-    : await supabase.auth.verifyOtp({
-        token_hash: tokenHash || "",
-        type: (type || "email") as EmailOtpType,
-      });
+  const { error } = await supabase.auth.exchangeCodeForSession(code);
 
   if (error) {
-    console.warn("[auth/callback] Auth verification failed:", error.message);
+    console.warn("[auth/callback] Code exchange failed:", error.message);
     return redirectToLogin(requestUrl);
   }
 
