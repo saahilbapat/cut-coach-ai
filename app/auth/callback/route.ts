@@ -1,36 +1,54 @@
 import { NextResponse } from "next/server";
+import type { EmailOtpType, SupabaseClient } from "@supabase/supabase-js";
 import { isProfileComplete } from "../../../lib/profile";
 import { createClient } from "../../../lib/supabase/server";
 import { getProfile } from "../../../lib/supabase/queries";
 
-const AUTH_ERROR_MESSAGES = {
-  missing_code: "The login link is missing an auth code. Request a new magic link.",
-  exchange_failed: "The login link could not be verified. Request a new magic link.",
-  session_missing: "The login session could not be created. Request a new magic link.",
-};
+const AUTH_CALLBACK_ERROR_MESSAGE =
+  "The login link could not be verified. Request a new magic link.";
 
-function redirectToLogin(requestUrl: URL, error: keyof typeof AUTH_ERROR_MESSAGES) {
+function redirectToLogin(requestUrl: URL) {
   const url = new URL("/login", requestUrl.origin);
-  url.searchParams.set("error", error);
-  url.searchParams.set("message", AUTH_ERROR_MESSAGES[error]);
+  url.searchParams.set("error", "auth_callback_failed");
+  url.searchParams.set("message", AUTH_CALLBACK_ERROR_MESSAGE);
   return NextResponse.redirect(url);
+}
+
+async function getDestination(supabase: SupabaseClient) {
+  try {
+    const profile = await getProfile(supabase);
+    return isProfileComplete(profile) ? "/" : "/profile";
+  } catch (error) {
+    console.warn(
+      "[auth/callback] Profile lookup failed after auth:",
+      error instanceof Error ? error.message : "Unknown error"
+    );
+    return "/profile";
+  }
 }
 
 export async function GET(request: Request) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get("code");
+  const tokenHash = requestUrl.searchParams.get("token_hash");
+  const type = requestUrl.searchParams.get("type");
 
-  if (!code) {
-    console.warn("[auth/callback] Missing auth code.");
-    return redirectToLogin(requestUrl, "missing_code");
+  if (!code && !tokenHash) {
+    console.warn("[auth/callback] Missing auth code or token hash.");
+    return redirectToLogin(requestUrl);
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.exchangeCodeForSession(code);
+  const { error } = code
+    ? await supabase.auth.exchangeCodeForSession(code)
+    : await supabase.auth.verifyOtp({
+        token_hash: tokenHash || "",
+        type: (type || "email") as EmailOtpType,
+      });
 
   if (error) {
-    console.warn("[auth/callback] Code exchange failed:", error.message);
-    return redirectToLogin(requestUrl, "exchange_failed");
+    console.warn("[auth/callback] Auth verification failed:", error.message);
+    return redirectToLogin(requestUrl);
   }
 
   const {
@@ -40,11 +58,10 @@ export async function GET(request: Request) {
 
   if (userError || !user) {
     console.warn("[auth/callback] Session verification failed:", userError?.message);
-    return redirectToLogin(requestUrl, "session_missing");
+    return redirectToLogin(requestUrl);
   }
 
-  const profile = await getProfile(supabase);
-  const destination = isProfileComplete(profile) ? "/" : "/profile";
+  const destination = await getDestination(supabase);
 
   return NextResponse.redirect(new URL(destination, requestUrl.origin));
 }
