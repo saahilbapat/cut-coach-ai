@@ -15,9 +15,10 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState(initialMessage);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [action, setAction] = useState<"signin" | "signup">("signin");
+  const [action, setAction] = useState<"signin" | "signup" | "reset">("signin");
 
   async function redirectAfterSignIn() {
     const supabase = createClient();
@@ -43,6 +44,16 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
       const trimmedEmail = email.trim();
 
       if (nextAction === "signup") {
+        if (password.length < 6) {
+          setMessage("Password must be at least 6 characters.");
+          return;
+        }
+
+        if (password !== confirmPassword) {
+          setMessage("Passwords do not match.");
+          return;
+        }
+
         const { data, error } = await supabase.auth.signUp({
           email: trimmedEmail,
           password,
@@ -78,6 +89,38 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
           ? "Could not create account. Check the email and password and try again."
           : "Could not sign in. Check the email and password and try again."
       );
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function sendPasswordReset() {
+    const trimmedEmail = email.trim();
+
+    if (!trimmedEmail) {
+      setMessage("Enter your email first, then request a password reset.");
+      return;
+    }
+
+    setIsSubmitting(true);
+    setAction("reset");
+    setMessage("");
+
+    try {
+      const supabase = createClient();
+      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+        redirectTo: `${window.location.origin}/update-password`,
+      });
+
+      if (error) throw error;
+
+      setMessage("Password reset sent. Check your email to set a new password.");
+    } catch (error) {
+      console.error(
+        "[login] Could not send password reset:",
+        error instanceof Error ? error.message : "Unknown error"
+      );
+      setMessage("Could not send password reset. Check the email and try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -122,6 +165,19 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
         onChange={(event) => setPassword(event.target.value)}
       />
 
+      <label className="mt-5 block text-sm font-bold text-slate-300">
+        Confirm Password <span className="text-slate-500">(new accounts)</span>
+      </label>
+      <input
+        type="password"
+        minLength={6}
+        autoComplete="new-password"
+        className="mt-2 w-full rounded-[1.5rem] border border-white/10 bg-black/35 px-4 py-4 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300"
+        placeholder="Re-enter password to create account"
+        value={confirmPassword}
+        onChange={(event) => setConfirmPassword(event.target.value)}
+      />
+
       <div className="mt-5 grid gap-3 sm:grid-cols-2">
         <button
           type="submit"
@@ -141,6 +197,15 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
           {isSubmitting && action === "signup" ? "Creating..." : "Create Account"}
         </button>
       </div>
+
+      <button
+        type="button"
+        disabled={isSubmitting}
+        onClick={sendPasswordReset}
+        className="mt-4 min-h-12 w-full rounded-[1.5rem] px-4 py-3 text-sm font-bold text-slate-300 transition duration-200 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:text-slate-600"
+      >
+        {isSubmitting && action === "reset" ? "Sending reset..." : "Forgot password?"}
+      </button>
 
       {message && (
         <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-slate-200">
