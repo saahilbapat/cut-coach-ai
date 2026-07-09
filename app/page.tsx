@@ -219,13 +219,13 @@ export default function Home() {
 
       if (stored) {
         setMessage(`Saved check-in for ${form.date}. Showing saved analysis.`);
-        if (updated.length >= 2) scrollToAnalysis();
+        scrollToAnalysis();
         return;
       }
 
       if (analysis && signature === lastAnalysisSignature) {
         setMessage(`Saved check-in for ${form.date}. Showing existing analysis.`);
-        if (updated.length >= 2) scrollToAnalysis();
+        scrollToAnalysis();
         return;
       }
 
@@ -279,11 +279,11 @@ export default function Home() {
         setLastAnalysisSignature(updatedSignature);
       }
       setMessage(`Saved and analyzed check-in for ${form.date}.`);
-      if (updated.length >= 2) scrollToAnalysis();
+      scrollToAnalysis();
     } catch (error) {
       console.error(error);
       setAnalysisError("Could not analyze this check-in. Check the server console.");
-      if (saved.length >= 2) scrollToAnalysis();
+      scrollToAnalysis();
     } finally {
       analyzingRef.current = false;
       setIsAnalyzing(false);
@@ -314,7 +314,8 @@ export default function Home() {
                 Today&apos;s Log
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300 sm:text-base">
-                {displayName}, {heroMessage} {dashboardUnlocked ? "Dashboard trends are unlocked." : "Log at least 2 days to unlock your dashboard trends."}
+                {displayName}, {heroMessage} Save today&apos;s log to get your AI coach
+                analysis immediately.
               </p>
             </div>
 
@@ -360,11 +361,12 @@ export default function Home() {
 
         {!dashboardUnlocked && (
           <div className="mt-5 rounded-[1.75rem] border border-white/10 bg-slate-950 p-4 text-sm font-semibold leading-6 text-slate-300 shadow-xl shadow-black/20">
-            Log at least 2 days to unlock your dashboard trends.
+            Daily AI analysis is available now. Log at least 2 days to unlock dashboard
+            trends, progress charts, weekly averages, and long-term coaching patterns.
           </div>
         )}
 
-        <div className={dashboardUnlocked ? "mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)] lg:items-start" : "mt-5"}>
+        <div className="mt-5 grid gap-6 lg:grid-cols-[minmax(0,1.05fr)_minmax(340px,0.95fr)] lg:items-start">
           <CheckInForm
             form={form}
             isAnalyzing={isAnalyzing}
@@ -372,15 +374,13 @@ export default function Home() {
             updateField={updateField}
           />
 
-          {dashboardUnlocked && (
-            <div ref={analysisSectionRef} className="scroll-mt-24 space-y-6 lg:sticky lg:top-24">
-              <AnalysisCards
-                analysis={analysis}
-                analysisError={analysisError}
-                isAnalyzing={isAnalyzing}
-              />
-            </div>
-          )}
+          <div ref={analysisSectionRef} className="scroll-mt-24 space-y-6 lg:sticky lg:top-24">
+            <AnalysisCards
+              analysis={analysis}
+              analysisError={analysisError}
+              isAnalyzing={isAnalyzing}
+            />
+          </div>
         </div>
 
         <div className="mt-8 pb-6">
