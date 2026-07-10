@@ -10,11 +10,12 @@ import { MigrationPrompt } from "../components/MigrationPrompt";
 import { useRouter } from "next/navigation";
 import { buildAIContext } from "../lib/aiContext";
 import {
+  createEmptyCheckIn,
   createSignature,
-  emptyCheckIn,
   getDashboardStats,
+  getLocalDateString,
+  parseLocalDate,
   saveCheckInToList,
-  today,
 } from "../lib/checkins";
 import { applyFoodMemoryDetections } from "../lib/foodMemory";
 import { emptyProfile } from "../lib/profile";
@@ -58,9 +59,32 @@ function getHeroMessage(savedCount: number, streak: number, hasTodayLog: boolean
   return "Let's finish today's log.";
 }
 
+function hasCheckInContent(checkIn: CheckIn) {
+  return (
+    checkIn.weight.trim() !== "" ||
+    checkIn.steps.trim() !== "" ||
+    checkIn.workout.trim() !== "" ||
+    checkIn.workoutType !== "Push" ||
+    checkIn.workoutDuration.trim() !== "" ||
+    checkIn.cardioType.trim() !== "" ||
+    checkIn.cardioDuration.trim() !== "" ||
+    checkIn.breakfast.trim() !== "" ||
+    checkIn.lunch.trim() !== "" ||
+    checkIn.dinner.trim() !== "" ||
+    checkIn.snacks.trim() !== "" ||
+    checkIn.alcohol.trim() !== "" ||
+    checkIn.water.trim() !== "" ||
+    checkIn.hunger.trim() !== "" ||
+    checkIn.energy.trim() !== "" ||
+    checkIn.mood.trim() !== "" ||
+    checkIn.notes.trim() !== ""
+  );
+}
+
 export default function Home() {
   const router = useRouter();
-  const [form, setForm] = useState<CheckIn>(emptyCheckIn);
+  const [currentLocalDate, setCurrentLocalDate] = useState(() => getLocalDateString());
+  const [form, setForm] = useState<CheckIn>(() => createEmptyCheckIn(currentLocalDate));
   const [saved, setSaved] = useState<CheckIn[]>([]);
   const [storedAnalyses, setStoredAnalyses] = useState<StoredAnalysis[]>([]);
   const [foodMemory, setFoodMemory] = useState<FoodMemoryItem[]>([]);
@@ -72,6 +96,7 @@ export default function Home() {
   const [lastAnalysisSignature, setLastAnalysisSignature] = useState("");
   const [profile, setProfile] = useState<UserProfile>(emptyProfile);
   const analyzingRef = useRef(false);
+  const currentLocalDateRef = useRef(currentLocalDate);
   const analysisSectionRef = useRef<HTMLDivElement>(null);
 
   const loadCloudData = useCallback(async (syncLocalCache = true) => {
@@ -98,6 +123,28 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    currentLocalDateRef.current = currentLocalDate;
+  }, [currentLocalDate]);
+
+  useEffect(() => {
+    const refreshCurrentDate = () => {
+      const nextDate = getLocalDateString();
+      const previousDate = currentLocalDateRef.current;
+
+      if (previousDate === nextDate) return;
+
+      currentLocalDateRef.current = nextDate;
+      setCurrentLocalDate(nextDate);
+      setForm((currentForm) =>
+        currentForm.date === previousDate && !hasCheckInContent(currentForm)
+          ? createEmptyCheckIn(nextDate)
+          : currentForm
+      );
+      setAnalysis(null);
+      setLastAnalysisSignature("");
+    };
+    const dateRefreshInterval = window.setInterval(refreshCurrentDate, 60_000);
+
     async function loadInitialData() {
       setIsLoading(true);
 
@@ -129,6 +176,8 @@ export default function Home() {
     }
 
     loadInitialData();
+
+    return () => window.clearInterval(dateRefreshInterval);
   }, [loadCloudData, router]);
 
   function updateField(field: keyof CheckIn, value: string) {
@@ -176,28 +225,36 @@ export default function Home() {
   }
 
   async function saveCheckIn() {
-    const updated = saveCheckInToList(saved, form);
+    if (!form.date) {
+      throw new Error("Choose a date before saving this check-in.");
+    }
+
+    const checkInToSave = { ...form };
+    const updated = saveCheckInToList(saved, checkInToSave);
     const supabase = createClient();
 
-    await upsertCheckIn(supabase, form);
+    await upsertCheckIn(supabase, checkInToSave);
     saveCheckIns(updated);
     setSaved(updated);
-    setMessage(`Saved check-in for ${form.date}.`);
+    setMessage(`Saved check-in for ${checkInToSave.date}.`);
 
     return updated;
   }
 
   function loadCheckIn(checkIn: CheckIn) {
-    setForm(checkIn);
+    setForm({ ...checkIn });
     rememberAnalysis(checkIn, saved);
     setMessage(`Loaded ${checkIn.date}. You can edit and save again.`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
   function startToday() {
-    const todayLog = saved.find((item) => item.date === today);
-    const nextForm = todayLog || emptyCheckIn;
+    const localToday = getLocalDateString();
+    const todayLog = saved.find((item) => item.date === localToday);
+    const nextForm = todayLog ? { ...todayLog } : createEmptyCheckIn(localToday);
 
+    currentLocalDateRef.current = localToday;
+    setCurrentLocalDate(localToday);
     setForm(nextForm);
     rememberAnalysis(nextForm, saved);
     setMessage(todayLog ? "Loaded today's saved log." : "Ready for today's log.");
@@ -214,17 +271,18 @@ export default function Home() {
     setAnalysisError("");
 
     try {
+      const checkInForAnalysis = { ...form };
       const updated = await saveCheckIn();
-      const { checkInLog, signature, stored } = rememberAnalysis(form, updated);
+      const { checkInLog, signature, stored } = rememberAnalysis(checkInForAnalysis, updated);
 
       if (stored) {
-        setMessage(`Saved check-in for ${form.date}. Showing saved analysis.`);
+        setMessage(`Saved check-in for ${checkInForAnalysis.date}. Showing saved analysis.`);
         scrollToAnalysis();
         return;
       }
 
       if (analysis && signature === lastAnalysisSignature) {
-        setMessage(`Saved check-in for ${form.date}. Showing existing analysis.`);
+        setMessage(`Saved check-in for ${checkInForAnalysis.date}. Showing existing analysis.`);
         scrollToAnalysis();
         return;
       }
@@ -250,23 +308,23 @@ export default function Home() {
 
       setAnalysis(data.analysis || null);
       setLastAnalysisSignature(signature);
-      saveStoredAnalysis(form.date, signature, data.analysis);
-      await upsertAnalysis(createClient(), form.date, signature, data.analysis);
+      saveStoredAnalysis(checkInForAnalysis.date, signature, data.analysis);
+      await upsertAnalysis(createClient(), checkInForAnalysis.date, signature, data.analysis);
       const nextStoredAnalyses = [
         ...storedAnalyses.filter(
-          (item) => !(item.date === form.date && item.signature === signature)
+          (item) => !(item.date === checkInForAnalysis.date && item.signature === signature)
         ),
-        { date: form.date, signature, analysis: data.analysis },
+        { date: checkInForAnalysis.date, signature, analysis: data.analysis },
       ];
       setStoredAnalyses(nextStoredAnalyses);
-      const updatedFoodMemory = applyFoodMemoryDetections(foodMemory, form);
+      const updatedFoodMemory = applyFoodMemoryDetections(foodMemory, checkInForAnalysis);
       const syncedFoodMemory = await Promise.all(
         updatedFoodMemory.map((item) => upsertFoodMemory(createClient(), item))
       );
       saveFoodMemory(syncedFoodMemory);
       setFoodMemory(syncedFoodMemory);
       const updatedInput = buildAIContext({
-        currentCheckIn: form,
+        currentCheckIn: checkInForAnalysis,
         foodMemory: syncedFoodMemory,
         savedCheckIns: updated,
         profile,
@@ -274,11 +332,11 @@ export default function Home() {
       });
       const updatedSignature = createSignature(updatedInput);
       if (updatedSignature !== signature) {
-        saveStoredAnalysis(form.date, updatedSignature, data.analysis);
-        await upsertAnalysis(createClient(), form.date, updatedSignature, data.analysis);
+        saveStoredAnalysis(checkInForAnalysis.date, updatedSignature, data.analysis);
+        await upsertAnalysis(createClient(), checkInForAnalysis.date, updatedSignature, data.analysis);
         setLastAnalysisSignature(updatedSignature);
       }
-      setMessage(`Saved and analyzed check-in for ${form.date}.`);
+      setMessage(`Saved and analyzed check-in for ${checkInForAnalysis.date}.`);
       scrollToAnalysis();
     } catch (error) {
       console.error(error);
@@ -290,8 +348,8 @@ export default function Home() {
     }
   }
 
-  const stats = getDashboardStats(saved);
-  const hasTodayLog = saved.some((item) => item.date === today);
+  const stats = getDashboardStats(saved, currentLocalDate);
+  const hasTodayLog = saved.some((item) => item.date === currentLocalDate);
   const displayName = profile.name.trim() || "there";
   const heroMessage = getHeroMessage(saved.length, stats.streak, hasTodayLog);
   const dashboardUnlocked = saved.length >= 2;
@@ -299,7 +357,7 @@ export default function Home() {
     month: "long",
     day: "numeric",
     weekday: "long",
-  }).format(new Date(`${today}T12:00:00`));
+  }).format(parseLocalDate(currentLocalDate));
 
   return (
     <main className="min-h-screen overflow-x-hidden bg-black px-3 py-3 text-white sm:px-6 sm:py-8">

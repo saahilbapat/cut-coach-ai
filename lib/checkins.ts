@@ -1,63 +1,80 @@
 import type { CheckIn } from "./types";
 
-export const today = new Date().toISOString().split("T")[0];
+export function getLocalDateString(date = new Date()) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-export const emptyCheckIn: CheckIn = {
-  date: today,
-  weight: "",
-  steps: "",
-  workout: "",
-  workoutType: "Push",
-  workoutDuration: "",
-  cardioType: "",
-  cardioDuration: "",
-  breakfast: "",
-  lunch: "",
-  dinner: "",
-  snacks: "",
-  alcohol: "",
-  water: "",
-  hunger: "",
-  energy: "",
-  mood: "",
-  notes: "",
-};
+  return `${year}-${month}-${day}`;
+}
+
+export function parseLocalDate(dateString: string) {
+  const [year, month, day] = dateString.split("-").map(Number);
+
+  return new Date(year, (month || 1) - 1, day || 1, 12, 0, 0, 0);
+}
+
+export function addLocalDays(dateString: string, days: number) {
+  const date = parseLocalDate(dateString);
+  date.setDate(date.getDate() + days);
+
+  return getLocalDateString(date);
+}
+
+export function createEmptyCheckIn(date = getLocalDateString()): CheckIn {
+  return {
+    date,
+    weight: "",
+    steps: "",
+    workout: "",
+    workoutType: "Push",
+    workoutDuration: "",
+    cardioType: "",
+    cardioDuration: "",
+    breakfast: "",
+    lunch: "",
+    dinner: "",
+    snacks: "",
+    alcohol: "",
+    water: "",
+    hunger: "",
+    energy: "",
+    mood: "",
+    notes: "",
+  };
+}
 
 export function isAlcoholDay(alcohol: string) {
   const value = alcohol.trim().toLowerCase();
   return value !== "" && value !== "none" && value !== "0";
 }
 
-export function calculateStreak(saved: CheckIn[]) {
+export function calculateStreak(saved: CheckIn[], anchorDate = getLocalDateString()) {
   const savedDates = new Set(saved.map((item) => item.date));
   let streak = 0;
-  const current = new Date(today);
+  let currentDate = anchorDate;
 
   while (true) {
-    const dateString = current.toISOString().split("T")[0];
-    if (!savedDates.has(dateString)) break;
+    if (!savedDates.has(currentDate)) break;
     streak++;
-    current.setDate(current.getDate() - 1);
+    currentDate = addLocalDays(currentDate, -1);
   }
 
   return streak;
 }
 
-export function getMissingDates(saved: CheckIn[]) {
+export function getMissingDates(saved: CheckIn[], endDate = getLocalDateString()) {
   if (saved.length === 0) return [];
 
   const savedDates = new Set(saved.map((item) => item.date));
   const sorted = [...saved].sort((a, b) => a.date.localeCompare(b.date));
-  const start = new Date(sorted[0].date);
-  const end = new Date(today);
+  const startDate = sorted[0].date;
   const missing: string[] = [];
+  let currentDate = startDate;
 
-  const current = new Date(start);
-
-  while (current <= end) {
-    const dateString = current.toISOString().split("T")[0];
-    if (!savedDates.has(dateString)) missing.push(dateString);
-    current.setDate(current.getDate() + 1);
+  while (currentDate <= endDate) {
+    if (!savedDates.has(currentDate)) missing.push(currentDate);
+    currentDate = addLocalDays(currentDate, 1);
   }
 
   return missing;
@@ -202,11 +219,11 @@ function getAlcoholPattern(alcoholFreeDaysLast7: number, loggedDays: number) {
   return "Alcohol is showing up often enough to watch.";
 }
 
-export function getDashboardStats(saved: CheckIn[]) {
+export function getDashboardStats(saved: CheckIn[], anchorDate = getLocalDateString()) {
   const last7 = [...saved].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 7);
   const chronologicalLast7 = [...last7].sort((a, b) => a.date.localeCompare(b.date));
-  const streak = calculateStreak(saved);
-  const missingDates = getMissingDates(saved);
+  const streak = calculateStreak(saved, anchorDate);
+  const missingDates = getMissingDates(saved, anchorDate);
   const stepValues = last7
     .map((item) => parseLoggedNumber(item.steps))
     .filter((value): value is number => value !== null);

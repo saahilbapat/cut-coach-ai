@@ -49,6 +49,7 @@ export function CheckInForm({ form, isAnalyzing, onSubmit, updateField }: CheckI
             <label className={label}>Date</label>
             <input
               type="date"
+              required
               className={input}
               value={form.date}
               onChange={(event) => updateField("date", event.target.value)}

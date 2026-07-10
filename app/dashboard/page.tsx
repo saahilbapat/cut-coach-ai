@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { AnalysisCards } from "../../components/AnalysisCards";
 import { DashboardStats } from "../../components/DashboardStats";
 import { MainNav } from "../../components/MainNav";
-import { getDashboardStats } from "../../lib/checkins";
+import { getDashboardStats, getLocalDateString } from "../../lib/checkins";
 import { emptyProfile } from "../../lib/profile";
 import {
   loadCheckIns,
@@ -31,8 +31,14 @@ export default function DashboardPage() {
   const [latestAnalysis, setLatestAnalysis] = useState<Analysis | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [message, setMessage] = useState("");
+  const [currentLocalDate, setCurrentLocalDate] = useState(() => getLocalDateString());
 
   useEffect(() => {
+    const dateRefreshInterval = window.setInterval(
+      () => setCurrentLocalDate(getLocalDateString()),
+      60_000
+    );
+
     async function loadDashboardData() {
       setIsLoading(true);
 
@@ -78,9 +84,11 @@ export default function DashboardPage() {
     }
 
     loadDashboardData();
+
+    return () => window.clearInterval(dateRefreshInterval);
   }, [router]);
 
-  const stats = getDashboardStats(saved);
+  const stats = getDashboardStats(saved, currentLocalDate);
   const dashboardUnlocked = saved.length >= 2;
 
   return (

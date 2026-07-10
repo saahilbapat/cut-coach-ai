@@ -1,4 +1,4 @@
-import { formatCheckIn, isAlcoholDay } from "./checkins";
+import { formatCheckIn, isAlcoholDay, parseLocalDate } from "./checkins";
 import {
   formatFoodMemoryForContext,
   getRelevantFoodMemories,
@@ -47,7 +47,7 @@ function formatAverage(value: number | null, digits = 0) {
 }
 
 function toDate(date: string) {
-  return new Date(`${date}T12:00:00`);
+  return parseLocalDate(date);
 }
 
 function getCheckInsWithinDays(checkIns: CheckIn[], anchorDate: string, days: number) {
