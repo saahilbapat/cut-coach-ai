@@ -11,6 +11,8 @@ type LoginFormProps = {
   initialMessage?: string;
 };
 
+type AuthMode = "login" | "signup" | "forgot";
+
 export function LoginForm({ initialMessage = "" }: LoginFormProps) {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -18,7 +20,7 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState(initialMessage);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [action, setAction] = useState<"signin" | "signup" | "reset">("signin");
+  const [mode, setMode] = useState<AuthMode>("login");
 
   async function redirectAfterSignIn() {
     const supabase = createClient();
@@ -29,21 +31,31 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const nextAction =
-      submitter instanceof HTMLButtonElement && submitter.value === "signup"
-        ? "signup"
-        : "signin";
 
     setIsSubmitting(true);
-    setAction(nextAction);
     setMessage("");
 
     try {
       const supabase = createClient();
       const trimmedEmail = email.trim();
 
-      if (nextAction === "signup") {
+      if (mode === "forgot") {
+        if (!trimmedEmail) {
+          setMessage("Enter your email first, then request a password reset.");
+          return;
+        }
+
+        const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
+          redirectTo: `${window.location.origin}/update-password`,
+        });
+
+        if (error) throw error;
+
+        setMessage("Password reset sent. Check your email to set a new password.");
+        return;
+      }
+
+      if (mode === "signup") {
         if (password.length < 6) {
           setMessage("Password must be at least 6 characters.");
           return;
@@ -62,7 +74,9 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
         if (error) throw error;
 
         if (!data.session) {
-          setMessage("Account created. Check your email to confirm, then log in.");
+          setMessage(
+            "If this is a new account, check your email to confirm, then log in. If this email already has an account, use Log In or Forgot password."
+          );
           return;
         }
 
@@ -81,50 +95,35 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
       await redirectAfterSignIn();
     } catch (error) {
       console.error(
-        nextAction === "signup" ? "[login] Could not create account:" : "[login] Could not sign in:",
+        mode === "signup"
+          ? "[login] Could not create account:"
+          : mode === "forgot"
+            ? "[login] Could not send password reset:"
+            : "[login] Could not sign in:",
         error instanceof Error ? error.message : "Unknown error"
       );
-      setMessage(
-        nextAction === "signup"
-          ? "Could not create account. Check the email and password and try again."
-          : "Could not sign in. Check the email and password and try again."
-      );
+      if (mode === "signup") {
+        setMessage(
+          "Could not create account. If this email already has an account, log in or use Forgot password."
+        );
+      } else if (mode === "forgot") {
+        setMessage("Could not send password reset. Check the email and try again.");
+      } else {
+        setMessage("Could not sign in. Check the email and password and try again.");
+      }
     } finally {
       setIsSubmitting(false);
     }
   }
 
-  async function sendPasswordReset() {
-    const trimmedEmail = email.trim();
-
-    if (!trimmedEmail) {
-      setMessage("Enter your email first, then request a password reset.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    setAction("reset");
+  function switchMode(nextMode: AuthMode) {
+    setMode(nextMode);
     setMessage("");
-
-    try {
-      const supabase = createClient();
-      const { error } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: `${window.location.origin}/update-password`,
-      });
-
-      if (error) throw error;
-
-      setMessage("Password reset sent. Check your email to set a new password.");
-    } catch (error) {
-      console.error(
-        "[login] Could not send password reset:",
-        error instanceof Error ? error.message : "Unknown error"
-      );
-      setMessage("Could not send password reset. Check the email and try again.");
-    } finally {
-      setIsSubmitting(false);
-    }
   }
+
+  const isLogin = mode === "login";
+  const isSignup = mode === "signup";
+  const isForgot = mode === "forgot";
 
   return (
     <form
@@ -142,6 +141,33 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
         across phone and computer.
       </p>
 
+      <div className="mt-6 grid grid-cols-2 gap-2 rounded-[1.5rem] border border-white/10 bg-black/25 p-1.5">
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => switchMode("login")}
+          className={
+            isLogin
+              ? "min-h-11 rounded-full bg-emerald-400 px-3 py-2 text-sm font-black text-black"
+              : "min-h-11 rounded-full px-3 py-2 text-sm font-bold text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+          }
+        >
+          Log In
+        </button>
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => switchMode("signup")}
+          className={
+            isSignup
+              ? "min-h-11 rounded-full bg-emerald-400 px-3 py-2 text-sm font-black text-black"
+              : "min-h-11 rounded-full px-3 py-2 text-sm font-bold text-slate-400 transition hover:bg-white/[0.04] hover:text-white"
+          }
+        >
+          Create Account
+        </button>
+      </div>
+
       <label className="mt-7 block text-sm font-bold text-slate-300">Email</label>
       <input
         type="email"
@@ -153,59 +179,87 @@ export function LoginForm({ initialMessage = "" }: LoginFormProps) {
         onChange={(event) => setEmail(event.target.value)}
       />
 
-      <label className="mt-5 block text-sm font-bold text-slate-300">Password</label>
-      <input
-        type="password"
-        required
-        minLength={6}
-        autoComplete={action === "signup" ? "new-password" : "current-password"}
-        className="mt-2 w-full rounded-[1.5rem] border border-white/10 bg-black/35 px-4 py-4 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300"
-        placeholder="At least 6 characters"
-        value={password}
-        onChange={(event) => setPassword(event.target.value)}
-      />
+      {!isForgot && (
+        <>
+          <label className="mt-5 block text-sm font-bold text-slate-300">Password</label>
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete={isSignup ? "new-password" : "current-password"}
+            className="mt-2 w-full rounded-[1.5rem] border border-white/10 bg-black/35 px-4 py-4 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300"
+            placeholder="At least 6 characters"
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+          />
+        </>
+      )}
 
-      <label className="mt-5 block text-sm font-bold text-slate-300">
-        Confirm Password <span className="text-slate-500">(new accounts)</span>
-      </label>
-      <input
-        type="password"
-        minLength={6}
-        autoComplete="new-password"
-        className="mt-2 w-full rounded-[1.5rem] border border-white/10 bg-black/35 px-4 py-4 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300"
-        placeholder="Re-enter password to create account"
-        value={confirmPassword}
-        onChange={(event) => setConfirmPassword(event.target.value)}
-      />
+      {isSignup && (
+        <>
+          <label className="mt-5 block text-sm font-bold text-slate-300">
+            Confirm Password
+          </label>
+          <input
+            type="password"
+            required
+            minLength={6}
+            autoComplete="new-password"
+            className="mt-2 w-full rounded-[1.5rem] border border-white/10 bg-black/35 px-4 py-4 text-white outline-none placeholder:text-slate-600 focus:border-emerald-300"
+            placeholder="Re-enter password"
+            value={confirmPassword}
+            onChange={(event) => setConfirmPassword(event.target.value)}
+          />
+        </>
+      )}
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-2">
-        <button
-          type="submit"
-          value="signin"
-          disabled={isSubmitting}
-          className="min-h-14 rounded-[1.75rem] bg-emerald-400 p-4 font-black text-black shadow-xl shadow-emerald-400/20 transition duration-300 hover:-translate-y-0.5 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
-        >
-          {isSubmitting && action === "signin" ? "Logging in..." : "Log In"}
-        </button>
-
-        <button
-          type="submit"
-          value="signup"
-          disabled={isSubmitting}
-          className="min-h-14 rounded-[1.75rem] border border-white/10 bg-white/[0.04] p-4 font-black text-slate-100 transition duration-300 hover:-translate-y-0.5 hover:bg-white/[0.08] disabled:cursor-not-allowed disabled:bg-slate-900 disabled:text-slate-500"
-        >
-          {isSubmitting && action === "signup" ? "Creating..." : "Create Account"}
-        </button>
-      </div>
+      {isForgot && (
+        <p className="mt-4 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 text-sm leading-6 text-slate-300">
+          Enter the email for your existing account. We&apos;ll send one recovery email
+          that lets you set a password without changing your user ID or data.
+        </p>
+      )}
 
       <button
-        type="button"
+        type="submit"
         disabled={isSubmitting}
-        onClick={sendPasswordReset}
-        className="mt-4 min-h-12 w-full rounded-[1.5rem] px-4 py-3 text-sm font-bold text-slate-300 transition duration-200 hover:bg-white/[0.04] hover:text-white disabled:cursor-not-allowed disabled:text-slate-600"
+        className="mt-5 min-h-14 w-full rounded-[1.75rem] bg-emerald-400 p-4 font-black text-black shadow-xl shadow-emerald-400/20 transition duration-300 hover:-translate-y-0.5 hover:bg-emerald-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400 disabled:shadow-none"
       >
-        {isSubmitting && action === "reset" ? "Sending reset..." : "Forgot password?"}
+        {isSubmitting
+          ? isForgot
+            ? "Sending reset..."
+            : isSignup
+              ? "Creating..."
+              : "Logging in..."
+          : isForgot
+            ? "Send Password Reset"
+            : isSignup
+              ? "Create Account"
+              : "Log In"}
       </button>
+
+      <div className="mt-4 flex flex-wrap justify-center gap-x-4 gap-y-2 text-sm font-bold">
+        {!isForgot && (
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => switchMode("forgot")}
+            className="text-slate-400 transition hover:text-white disabled:text-slate-600"
+          >
+            Forgot password?
+          </button>
+        )}
+        {isForgot && (
+          <button
+            type="button"
+            disabled={isSubmitting}
+            onClick={() => switchMode("login")}
+            className="text-slate-400 transition hover:text-white disabled:text-slate-600"
+          >
+            Back to login
+          </button>
+        )}
+      </div>
 
       {message && (
         <div className="mt-5 rounded-[1.5rem] border border-white/10 bg-white/[0.04] p-4 text-sm font-semibold text-slate-200">

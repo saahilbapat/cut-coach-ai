@@ -5,7 +5,7 @@ import { createClient } from "../../../lib/supabase/server";
 import { getProfile } from "../../../lib/supabase/queries";
 
 const AUTH_CALLBACK_ERROR_MESSAGE =
-  "The login link could not be verified. Request a new magic link.";
+  "The sign-in link could not be verified. Use your email and password to log in.";
 
 function redirectToLogin(requestUrl: URL) {
   const url = new URL("/login", requestUrl.origin);
